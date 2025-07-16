@@ -6,7 +6,7 @@
   "models": [
     {
       "api": "rdk:service:vision",
-      "model": "viam-labs:vision:yolov8n-pose-falldetector",
+      "model": "sjain:vision:yolov8n-pose-falldetector",
       "markdown_link": "README.md#configure-your-vision-service",
       "short_description": "Supports YOLOv8n-pose inference, including fall detection classification"
     }
