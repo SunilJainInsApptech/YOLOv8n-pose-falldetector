@@ -2,11 +2,12 @@
 
 set -eu
 
-cd $(dirname $0)
+PROJECT_DIR=$(cd $(dirname $0) && pwd)
+cd $PROJECT_DIR
 
 # Create a virtual environment to run our code
 VENV_NAME=".venv-build"
-PYTHON="$VENV_NAME/bin/python"
+PYTHON="$PROJECT_DIR/$VENV_NAME/bin/python"
 
 export PATH=$PATH:$HOME/.local/bin
 
