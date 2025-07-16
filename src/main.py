@@ -1,7 +1,7 @@
 import asyncio
 
 from viam.module.module import Module
-from yolov8 import yolov8n_pose
+from yolov8n_pose import yolov8
 
 
 if __name__ == "__main__":

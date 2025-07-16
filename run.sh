@@ -37,4 +37,5 @@ else
 fi
 
 # Run the main Python module
-exec $PYTHON -m src.main "$@"
+cd src
+exec $PYTHON main.py "$@"
