@@ -141,6 +141,13 @@ class yolov8(Vision, EasyResource):
                         "x_max": int(r[2].item()),
                         "y_max": int(r[3].item()),
                     }
+                    
+                    # Add keypoints if available (for pose models)
+                    if hasattr(result, 'keypoints') and result.keypoints is not None:
+                        keypoints_data = self.extract_keypoints(result.keypoints, index)
+                        if keypoints_data:
+                            detection["keypoints"] = keypoints_data
+                    
                     detections.append(detection)
                     index = index + 1
 
@@ -184,12 +191,12 @@ class yolov8(Vision, EasyResource):
         extra: Optional[Mapping[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> List[PointCloudObject]:
-        pass
+        return []
 
     async def do_command(
         self, command: Mapping[str, ValueTypes], *, timeout: Optional[float] = None
     ) -> Mapping[str, ValueTypes]:
-        pass
+        return {}
 
     async def capture_all_from_camera(
         self,
@@ -264,4 +271,175 @@ def postprocess_classify_output(model: YOLO, result: Results) -> dict:
         return output
     else:
         return {}
+
+    def extract_keypoints(self, keypoints, index: int) -> Optional[List[dict]]:
+        """
+        Extract keypoints from YOLO pose estimation results.
+        
+        Args:
+            keypoints: Keypoints tensor from YOLO results
+            index: Index of the detection
+            
+        Returns:
+            List of keypoint dictionaries with x, y coordinates and confidence
+        """
+        if keypoints is None or len(keypoints.data) <= index:
+            return None
+            
+        # Get keypoints for the specific detection
+        kpts = keypoints.data[index]  # Shape: [17, 3] for COCO pose (17 keypoints, x,y,conf)
+        
+        # COCO pose keypoint names (standard for YOLOv8n-pose)
+        keypoint_names = [
+            "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+            "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+            "left_wrist", "right_wrist", "left_hip", "right_hip",
+            "left_knee", "right_knee", "left_ankle", "right_ankle"
+        ]
+        
+        keypoints_list = []
+        for i, name in enumerate(keypoint_names):
+            if i < len(kpts):
+                x, y, conf = kpts[i]
+                keypoints_list.append({
+                    "name": name,
+                    "x": float(x.item()),
+                    "y": float(y.item()),
+                    "confidence": float(conf.item()),
+                    "visible": conf.item() > 0.5  # Visibility threshold
+                })
+        
+        return keypoints_list
+
+    async def get_pose_detections(
+        self,
+        image: ViamImage,
+        *,
+        extra: Optional[Mapping[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> List[dict]:
+        """
+        Get pose detections with keypoints from an image.
+        
+        Returns:
+            List of pose detections with bounding boxes and keypoints
+        """
+        pose_detections = []
+        results = self.model.predict(viam_to_pil_image(image), device=self.device)
+        
+        if len(results) >= 1:
+            result = results[0]
+            
+            # Handle pose estimation results
+            if hasattr(result, 'keypoints') and result.keypoints is not None:
+                for i in range(len(result.keypoints.data)):
+                    detection = {}
+                    
+                    # Add bounding box if available
+                    if result.boxes and i < len(result.boxes):
+                        box = result.boxes.xyxy[i]
+                        detection.update({
+                            "confidence": result.boxes.conf[i].item(),
+                            "class_name": result.names[result.boxes.cls[i].item()],
+                            "x_min": int(box[0].item()),
+                            "y_min": int(box[1].item()),
+                            "x_max": int(box[2].item()),
+                            "y_max": int(box[3].item()),
+                        })
+                    
+                    # Add keypoints
+                    keypoints_data = self.extract_keypoints(result.keypoints, i)
+                    if keypoints_data:
+                        detection["keypoints"] = keypoints_data
+                        pose_detections.append(detection)
+        
+        return pose_detections
+
+    async def get_pose_detections_from_camera(
+        self,
+        camera_name: str,
+        *,
+        extra: Optional[Mapping[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> List[dict]:
+        """
+        Get pose detections with keypoints from a camera.
+        """
+        return await self.get_pose_detections(await self.get_cam_image(camera_name))
+
+    def analyze_pose_for_fall_detection(self, keypoints: List[dict]) -> dict:
+        """
+        Analyze pose keypoints to detect potential falls.
+        
+        Args:
+            keypoints: List of keypoint dictionaries
+            
+        Returns:
+            Dictionary with fall analysis results
+        """
+        if not keypoints:
+            return {"fall_detected": False, "confidence": 0.0, "reason": "No keypoints detected"}
+        
+        # Convert keypoints to dictionary for easier access
+        kp_dict = {kp["name"]: kp for kp in keypoints if kp["visible"]}
+        
+        fall_indicators = []
+        fall_score = 0.0
+        
+        # Check if person is lying down (horizontal orientation)
+        if all(kp in kp_dict for kp in ["left_shoulder", "right_shoulder", "left_hip", "right_hip"]):
+            shoulder_center_y = (kp_dict["left_shoulder"]["y"] + kp_dict["right_shoulder"]["y"]) / 2
+            hip_center_y = (kp_dict["left_hip"]["y"] + kp_dict["right_hip"]["y"]) / 2
+            
+            # If shoulders and hips are at similar height (horizontal position)
+            y_diff = abs(shoulder_center_y - hip_center_y)
+            if y_diff < 60:  # Threshold for horizontal position
+                fall_indicators.append("horizontal_orientation")
+                fall_score += 0.5
+        
+        # Check if head is lower than hips
+        if all(kp in kp_dict for kp in ["nose", "left_hip", "right_hip"]):
+            nose_y = kp_dict["nose"]["y"]
+            hip_center_y = (kp_dict["left_hip"]["y"] + kp_dict["right_hip"]["y"]) / 2
+            
+            if nose_y > hip_center_y:  # Head lower than hips
+                fall_indicators.append("head_below_hips")
+                fall_score += 0.4
+        
+        # Check for body aspect ratio (width vs height)
+        if all(kp in kp_dict for kp in ["nose", "left_ankle", "right_ankle", "left_shoulder", "right_shoulder"]):
+            # Calculate body height and width
+            min_y = min(kp_dict["nose"]["y"], kp_dict["left_shoulder"]["y"], kp_dict["right_shoulder"]["y"])
+            max_y = max(kp_dict["left_ankle"]["y"], kp_dict["right_ankle"]["y"])
+            body_height = max_y - min_y
+            
+            body_width = abs(kp_dict["right_shoulder"]["x"] - kp_dict["left_shoulder"]["x"])
+            
+            if body_height > 0 and body_width > 0:
+                aspect_ratio = body_width / body_height
+                if aspect_ratio > 0.8:  # More horizontal than vertical
+                    fall_indicators.append("horizontal_aspect_ratio")
+                    fall_score += 0.3
+        
+        # Check for unusual limb positions
+        limbs_on_ground = 0
+        if keypoints:
+            ground_threshold_y = max([kp["y"] for kp in keypoints if kp["visible"]], default=0) - 50
+            
+            for limb in ["left_wrist", "right_wrist", "left_ankle", "right_ankle"]:
+                if limb in kp_dict and kp_dict[limb]["y"] > ground_threshold_y:
+                    limbs_on_ground += 1
+            
+            if limbs_on_ground >= 3:
+                fall_indicators.append("multiple_limbs_on_ground")
+                fall_score += 0.2
+        
+        fall_detected = fall_score > 0.5
+        
+        return {
+            "fall_detected": fall_detected,
+            "confidence": fall_score,
+            "indicators": fall_indicators,
+            "keypoints_analyzed": len(kp_dict)
+        }
 

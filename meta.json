@@ -1,14 +1,14 @@
 {
-  "module_id": "viam-labs:YOLOv8",
-  "visibility": "public",
-  "url": "https://github.com/viam-labs/YOLOv8",
-  "description": "A Viam modular computer vision service for YOLOv8 inference, including models on HuggingFace",
+  "module_id": "sjain:vision:yolov8n-pose-falldetector",
+  "visibility": "prvivate",
+  "url": "https://github.com/viam-labs/YOLOv8n-pose-falldetector",
+  "description": "A Viam modular computer vision service for YOLOv8n-pose inference, including fall detection classification",
   "models": [
     {
       "api": "rdk:service:vision",
-      "model": "viam-labs:vision:yolov8",
+      "model": "viam-labs:vision:yolov8n-pose-falldetector",
       "markdown_link": "README.md#configure-your-vision-service",
-      "short_description": "Supports YOLOv8 inference, including models on HuggingFace"
+      "short_description": "Supports YOLOv8n-pose inference, including fall detection classification"
     }
   ],
   "build": {
