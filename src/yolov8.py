@@ -38,7 +38,7 @@ class yolov8(Vision, EasyResource):
     Vision represents a Vision service.
     """
 
-    MODEL: ClassVar[Model] = Model(ModelFamily("sjain", "vision"), "yolov8n-pose-falldetector")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "vision"), "yolov8")
 
     MODEL_FILE = ""
     MODEL_REPO = ""

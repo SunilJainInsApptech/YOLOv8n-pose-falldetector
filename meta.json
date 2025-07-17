@@ -1,5 +1,5 @@
 {
-  "module_id": "sjain:vision:yolov8n-pose-falldetector",
+  "module_id": "sjain:yolov8n-pose-falldetector",
   "visibility": "private",
   "url": "https://github.com/viam-labs/YOLOv8n-pose-falldetector",
   "description": "A Viam modular computer vision service for YOLOv8n-pose inference, including fall detection classification",
@@ -21,6 +21,6 @@
       "darwin/arm64"
     ]
   },
-  "entrypoint": "dist/main",
+  "entrypoint": "./run.sh",
   "first_run": ""
 }
