@@ -105,7 +105,11 @@ class yolov8(Vision, EasyResource):
         return
 
     async def get_cam_image(self, camera_name: str) -> ViamImage:
-        actual_cam = self.DEPS[Camera.get_resource_name(camera_name)]
+        camera_resource_name = Camera.get_resource_name(camera_name)
+        if camera_resource_name not in self.DEPS:
+            raise Exception(f"Camera '{camera_name}' not found in dependencies. Make sure to add '{camera_name}' to the 'depends_on' array in your vision service configuration.")
+        
+        actual_cam = self.DEPS[camera_resource_name]
         cam = cast(Camera, actual_cam)
         cam_image = await cam.get_image(mime_type="image/jpeg")
         return cam_image
@@ -243,34 +247,6 @@ class yolov8(Vision, EasyResource):
     def log_progress(self, count: int, block_size: int, total_size: int) -> None:
         percent = count * block_size * 100 // total_size
         LOGGER.debug(f"\rDownloading {self.MODEL_FILE}: {percent}%")
-
-
-# vendored and updated from ultralyticsplus library
-def postprocess_classify_output(model: YOLO, result: Results) -> dict:
-    """
-    Postprocesses the output of classification models
-
-    Args:
-        model (YOLO): YOLO model
-        prob (np.ndarray): output of the model
-
-    Returns:
-        dict: dictionary of outputs with labels
-    """
-    output = {}
-    if isinstance(model.names, list):
-        names = model.names
-    elif isinstance(model.names, dict):
-        names = model.names.values()
-    else:
-        raise ValueError("Model names must be either a list or a dict")
-
-    if result.probs:
-        for i, label in enumerate(names):
-            output[label] = result.probs[i].item()
-        return output
-    else:
-        return {}
 
     def extract_keypoints(self, keypoints, index: int) -> Optional[List[dict]]:
         """
@@ -442,4 +418,32 @@ def postprocess_classify_output(model: YOLO, result: Results) -> dict:
             "indicators": fall_indicators,
             "keypoints_analyzed": len(kp_dict)
         }
+
+
+# vendored and updated from ultralyticsplus library
+def postprocess_classify_output(model: YOLO, result: Results) -> dict:
+    """
+    Postprocesses the output of classification models
+
+    Args:
+        model (YOLO): YOLO model
+        prob (np.ndarray): output of the model
+
+    Returns:
+        dict: dictionary of outputs with labels
+    """
+    output = {}
+    if isinstance(model.names, list):
+        names = model.names
+    elif isinstance(model.names, dict):
+        names = model.names.values()
+    else:
+        raise ValueError("Model names must be either a list or a dict")
+
+    if result.probs:
+        for i, label in enumerate(names):
+            output[label] = result.probs[i].item()
+        return output
+    else:
+        return {}
 
