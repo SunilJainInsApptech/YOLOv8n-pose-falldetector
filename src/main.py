@@ -10,7 +10,6 @@ logger.info("Starting module...")
 from viam.module.module import Module
 from viam.resource.registry import Registry, ResourceCreatorRegistration
 from viam.services.vision import Vision
-from viam.resource.types import RESOURCE_NAMESPACE_RDK, RESOURCE_TYPE_SERVICE, Subtype
 
 logger.info("Imports successful, importing yolov8...")
 
@@ -19,13 +18,10 @@ from yolov8 import yolov8
 
 logger.info(f"yolov8 imported successfully. MODEL: {yolov8.MODEL}")
 
-# Create the Vision service subtype
-VISION_SUBTYPE = Subtype(RESOURCE_NAMESPACE_RDK, RESOURCE_TYPE_SERVICE, "vision")
-
-# Register the model with the Viam registry
+# Register the model with the Viam registry using string-based subtype
 logger.info("Registering model with Viam registry...")
 Registry.register_resource_creator(
-    VISION_SUBTYPE,
+    "rdk:service:vision",
     yolov8.MODEL,
     ResourceCreatorRegistration(yolov8.new, yolov8.validate_config),
 )
