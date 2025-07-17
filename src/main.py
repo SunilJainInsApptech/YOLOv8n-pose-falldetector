@@ -14,9 +14,14 @@ from viam.services.vision import Vision
 logger.info("Imports successful, importing yolov8...")
 
 # Import the vision service class
-from yolov8 import yolov8
-
-logger.info(f"yolov8 imported successfully. MODEL: {yolov8.MODEL}")
+try:
+    from yolov8 import yolov8
+    logger.info(f"yolov8 imported successfully. MODEL: {yolov8.MODEL}")
+except Exception as e:
+    logger.error(f"Failed to import yolov8: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    raise e
 
 # Register the model with the Viam registry using string-based subtype
 logger.info("Registering model with Viam registry...")
